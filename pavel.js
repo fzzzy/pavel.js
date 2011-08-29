@@ -4,7 +4,6 @@ const MAX_FDS = 32;
 let pavel = (function pavel() {
     // *************************************************************
     // ctypes
-    let libpoll = ctypes.open(ctypes.libraryName("poll"));
     let stdlib = ctypes.open(ctypes.libraryName("stdc++"));
     let evwrap = ctypes.open(ctypes.libraryName("evwrap"));
     let errno = evwrap.declare("err", ctypes.default_abi, ctypes.int);
@@ -12,7 +11,7 @@ let pavel = (function pavel() {
         [{fd: ctypes.int},
         {events: ctypes.short},
         {revents: ctypes.short}]);
-    var fd_array_t = pollfd.array(MAX_FDS);
+    let fd_array_t = pollfd.array(MAX_FDS);
     let malloc = stdlib.declare("malloc", ctypes.default_abi, ctypes.void_t.ptr, ctypes.int);
     let free = stdlib.declare("free", ctypes.default_abi, ctypes.void_t, ctypes.void_t.ptr);
     let nfds_t = ctypes.int;
@@ -57,6 +56,9 @@ let pavel = (function pavel() {
     Sleep.prototype.getTime = function() {
         return this._time.getTime();
     }
+    Sleep.prototype.toString = function() {
+        return "[object Sleep(" + this._time + ")]";
+    }
 
     // *************************************************************
     // Socket
@@ -99,7 +101,7 @@ let pavel = (function pavel() {
         recvstr.substring(0, received);
         return recvstr;
     }
-
+/*
     let sock = new Socket();
     print(sock.gethostbyname("google.com"));
     let result = sock.gethostbyname("localhost");
@@ -107,50 +109,74 @@ let pavel = (function pavel() {
     sock.connect(result, 6000);
     sock.send("hello\n");
     print(sock.recv(32));
-
+*/
     // *************************************************************
     // Receive
     function Receive(actor, pattern, timeout) {
-        this.actor = actor;
-        this.pattern = pattern;
-        this.timeout = timeout;
+        this._actor = actor;
+        this._pattern = pattern;
+        this._timeout = timeout;
+    }
+    Receive.prototype.toString = function() {
+        return "[object Receive]";
     }
 
     // *************************************************************
     // Actor
     function Actor(main) {
+        let actor = this;
         this._main = '(' + main.toString() + '())';
         let mailbox = this._mailbox = [];
         this._sandbox = evalcx("lazy");
+// temporary hack
+//        this._sandbox = {};
         this._sandbox.receive = function(pattern, timeout) {
-            return new Receive(mailbox, pattern, timeout);
+            return new Receive(actor, pattern, timeout);
         };
         this._sandbox.wait = function(time) { return new Sleep(time) };
         this._sandbox.print = function(what) { print(what) };
     }
+    Actor.prototype.toString = function() {
+        return "[object Actor]";
+    }
 
     // *************************************************************
     // Address
-    function Address(actor) {
+    function Address(actor, scheduler) {
         this._actor = actor;
+        this._scheduler = scheduler;
     }
-    Address.prototype.cast = function(message) {
-        this._actor._mailbox.push(JSON.stringify(message));
+    Address.prototype.cast = function(pattern, message) {
+        if (!message instanceof Address) {
+            JSON.stringify(message)
+        }
+        this._actor._mailbox.push([pattern.toString(), message]);
+        this._scheduler.schedule(this._actor);
     }
 
     // *************************************************************
     // Pavel
     function Pavel() {
         this._readies = [];
+        this._timers = [];
         this._waiters = [];
         for (let i = 0; i < MAX_FDS; i++) {
             this._waiters[i] = {fd: 0, events: 0, revents: 0};
         }
         this._waiting_fds = 0;
         this._fds = fd_array_t(this._waiters);
-        this._timers = [];
         this._poll = stdlib.declare("poll", ctypes.default_abi, ctypes.int,
             pollfd.ptr, nfds_t, ctypes.int);
+    }
+    Pavel.prototype.schedule = function(actor) {
+        if (actor._running) {
+            return;
+        }
+        if (actor._recv) {
+            actor = actor._recv;
+            delete actor._recv;
+        }
+        this._readies.push(actor);
     }
     Pavel.prototype.sleep = function(timeout) {
         this._poll(this._fds, this._waiting_fds, timeout);
@@ -158,18 +184,26 @@ let pavel = (function pavel() {
     Pavel.prototype.spawn = function(main) {
         let actor = new Actor(main);
         this._readies.push(actor);
-        return new Address(actor);
+        return new Address(actor, this);
     }
     Pavel.prototype.drain = function(timeout) {
         while (this._readies.length || this._timers.length) {
             while (this._readies.length) {
                 let evt = this._readies.shift();
                 if (evt instanceof Actor) {
-                    let sandbox = evalcx("", evt._sandbox);
+                    if (evt._running) {
+                        continue;
+                    }
                     try {
-                        let result = sandbox.eval(evt._main);
+                        let result = evt._sandbox.eval(evt._main);
+// temporary hack                        
+//                        let result = null;
+//                        with (evt._sandbox) {
+//                            result = eval(evt._main);
+//                        }
+                        evt._running = true;
                         if (result && result.next) {
-                            this._readies.push(result);
+                            this.schedule(result);
                         }
                     } catch (e) {
                         print("Error in Actor:");
@@ -178,22 +212,50 @@ let pavel = (function pavel() {
                         print(e.stack);
                     }
                 } else if (evt.next) {
+                    evt.toString = function() { return "[object Generator]" }
                     let state;
                     try {
                         state = evt.next();
                     } catch (e) {
-                        if (e instanceof StopIteration) continue;
+                        if (e instanceof StopIteration) {
+                            continue;
+                        }
                         throw e;
                     }
-                    if (state instanceof Sleep) {
-                        state._evt = evt;
-                        this._timers.push(state)
-                        this._timers.sort(function(a, b) {
-                            return ((a._time < b._time) ? -1 : ((a._time > b._time) ? 1 : 0));
-                        });
-                    }
+                    state._gen = evt;
+                    this.schedule(state);
+                } else if (evt instanceof Sleep) {
+                    this._timers.push(evt)
+                    this._timers.sort(function(a, b) {
+                        return ((a._time < b._time) ? -1 : ((a._time > b._time) ? 1 : 0));
+                    });
                 } else if (evt instanceof Receive) {
-                    // How do we get the actor here
+                    let mb = evt._actor._mailbox;
+                    let pattern = evt._pattern;
+                    let l = mb.length;
+                    for (var i = 0; i < l; i++) {
+                        if (mb[i][0] === pattern) {
+                            break;
+                        }
+                    }
+                    if (i === l) {
+                        evt._actor._recv = evt;
+                    } else {
+                        // We found a match for our pattern
+                        let result = null;
+                        try {
+                            result = evt._gen.send(mb[i][1]);
+                            mb.splice(i, 1);
+                        } catch (e) {
+                            if (e instanceof StopIteration) {
+                                continue;
+                            }
+                            throw e;
+                        }
+                        result._gen = evt._gen;
+                        delete evt._gen;
+                        this.schedule(result);
+                    }
                 } else {
                     throw new Error("Invalid event: " + evt.toString());
                 }
@@ -207,8 +269,8 @@ let pavel = (function pavel() {
             let timers = this._timers.splice(0, i);
             while (timers.length) {
                 let timer = timers.shift();
-                this._readies.push(timer._evt);
-                delete timer._evt;
+                this.schedule(timer._gen);
+                delete timer._gen;
             }
             if (!this._readies.length && this._timers.length) {
                 let sleepTime = (this._timers[0].getTime() - new Date().getTime());
@@ -216,24 +278,31 @@ let pavel = (function pavel() {
             }
         }
     }
-    
     return new Pavel();
 }());
 
 
 let act1 = pavel.spawn(function main() {
-    for (let i = 0; i < 10; i++) {
-        print("Hello");
-        yield wait(111);    
-    }
+    let peer = yield receive("peer");
+    peer.cast("message", "foo");
+    let message = yield receive("message");
+    print("Act1 saw: " + message);
+    peer.cast("message", "baz");
+    message = yield receive("message");
+    print("Act1 saw: " + message);
 });
 
 let act2 = pavel.spawn(function main() {
-    for (let i = 0; i < 10; i++) {
-        print("Goodbye");
-        yield wait(333);
-    }
+    let peer = yield receive("peer");
+    peer.cast("message", "bar");
+    let message = yield receive("message");
+    print("Act2 saw: " + message);
+    peer.cast("message", "frotz");
+    message = yield receive("message");
+    print("Act2 saw: " + message);
 });
+act2.cast("peer", act1);
+act1.cast("peer", act2);
 
 pavel.drain();
 
