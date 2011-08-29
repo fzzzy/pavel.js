@@ -44,7 +44,10 @@ let pavel = (function pavel() {
         ctypes.char.ptr);
     let connect = stdlib.declare("connect", ctypes.default_abi, ctypes.int,
         ctypes.int, sockaddr_in.ptr, ctypes.int);
-
+    let recv = stdlib.declare("recv", ctypes.default_abi, ctypes.int,
+        ctypes.int, ctypes.void_t.ptr, ctypes.int, ctypes.int);
+    let send = stdlib.declare("send", ctypes.default_abi, ctypes.int,
+        ctypes.int, ctypes.void_t.ptr, ctypes.int, ctypes.int);
     // *************************************************************
     // Sleep
     function Sleep(time) {
@@ -85,12 +88,25 @@ let pavel = (function pavel() {
             throw new Error("Error connecting to " + address + " " + port + " (" + err + ")");
         }
     }
+    Socket.prototype.send = function(data) {
+        let arraytype = ctypes.char.array(data.length);
+        return send(this._fd, arraytype(data).address(), data.length, 0);
+    }
+    Socket.prototype.recv = function(howmuch) {
+        let carray = ctypes.char.array(howmuch)();
+        let received = recv(this._fd, carray.address(), howmuch, 0);
+        var recvstr = carray.readString();
+        recvstr.substring(0, received);
+        return recvstr;
+    }
 
     let sock = new Socket();
     print(sock.gethostbyname("google.com"));
     let result = sock.gethostbyname("localhost");
     print(result);
     sock.connect(result, 6000);
+    sock.send("hello\n");
+    print(sock.recv(32));
 
     // *************************************************************
     // Receive
