@@ -6,28 +6,54 @@
 	objectVersion = 46;
 	objects = {
 
+/* Begin PBXFileReference section */
+		E376680E140ACB6100A04012 /* install.rdf */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = install.rdf; sourceTree = "<group>"; };
+		E3766810140ACB6100A04012 /* readme.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = readme.txt; sourceTree = "<group>"; };
+		E37B42ED1409E63A0025D823 /* evwrap.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = evwrap.c; sourceTree = "<group>"; };
+		E37B42EF1409E9E20025D823 /* evwrap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = evwrap.h; sourceTree = "<group>"; };
+		E37B42F0140A023D0025D823 /* ev.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = ev.c; path = "../libev-4.04/ev.c"; sourceTree = "<group>"; };
+		E37B42F1140A023D0025D823 /* ev.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ev.h; path = "../libev-4.04/ev.h"; sourceTree = "<group>"; };
+		E37B42F3140A1EA70025D823 /* CTypes.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = CTypes.cpp; path = "../mozilla-central/js/src/ctypes/CTypes.cpp"; sourceTree = "<group>"; };
+		E37B42F8140A2AA50025D823 /* CTypes.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CTypes.h; path = "../mozilla-central/js/src/ctypes/CTypes.h"; sourceTree = "<group>"; };
+		E3ACBC8C140ACBDC0002B495 /* build */ = {isa = PBXFileReference; lastKnownFileType = text; path = build; sourceTree = "<group>"; };
+		E3ACBC93140ADED40002B495 /* pavel */ = {isa = PBXFileReference; lastKnownFileType = folder; path = pavel; sourceTree = "<group>"; };
+		E3ACBC95140AFF5B0002B495 /* pavel.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; path = pavel.js; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
 /* Begin PBXGroup section */
 		E37B42DE14097EA60025D823 = {
 			isa = PBXGroup;
 			children = (
+				E3ACBC95140AFF5B0002B495 /* pavel.js */,
+				E3ACBC93140ADED40002B495 /* pavel */,
+				E3ACBC8C140ACBDC0002B495 /* build */,
+				E376680E140ACB6100A04012 /* install.rdf */,
+				E3766810140ACB6100A04012 /* readme.txt */,
+				E37B42F3140A1EA70025D823 /* CTypes.cpp */,
+				E37B42F8140A2AA50025D823 /* CTypes.h */,
+				E37B42EF1409E9E20025D823 /* evwrap.h */,
+				E37B42ED1409E63A0025D823 /* evwrap.c */,
+				E37B42F0140A023D0025D823 /* ev.c */,
+				E37B42F1140A023D0025D823 /* ev.h */,
 			);
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXLegacyTarget section */
-		E37B42E514097EA60025D823 /* pavel */ = {
+		E3ACBC8E140ACBF60002B495 /* pavel.xpi */ = {
 			isa = PBXLegacyTarget;
-			buildArgumentsString = "$(ACTION)";
-			buildConfigurationList = E37B42E814097EA60025D823 /* Build configuration list for PBXLegacyTarget "pavel" */;
+			buildArgumentsString = "-x $(ACTION)";
+			buildConfigurationList = E3ACBC8F140ACBF60002B495 /* Build configuration list for PBXLegacyTarget "pavel.xpi" */;
 			buildPhases = (
 			);
-			buildToolPath = /usr/bin/make;
+			buildToolPath = ./build;
+			buildWorkingDirectory = .;
 			dependencies = (
 			);
-			name = pavel;
+			name = pavel.xpi;
 			passBuildSettingsInEnvironment = 1;
-			productName = pavel;
+			productName = pavel.xpi;
 		};
 /* End PBXLegacyTarget section */
 
@@ -45,7 +71,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				E37B42E514097EA60025D823 /* pavel */,
+				E3ACBC8E140ACBF60002B495 /* pavel.xpi */,
 			);
 		};
 /* End PBXProject section */
@@ -96,7 +122,7 @@
 			};
 			name = Release;
 		};
-		E37B42E914097EA60025D823 /* Debug */ = {
+		E3ACBC90140ACBF60002B495 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				DEBUGGING_SYMBOLS = YES;
@@ -108,7 +134,7 @@
 			};
 			name = Debug;
 		};
-		E37B42EA14097EA60025D823 /* Release */ = {
+		E3ACBC91140ACBF60002B495 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				OTHER_CFLAGS = "";
@@ -129,11 +155,11 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		E37B42E814097EA60025D823 /* Build configuration list for PBXLegacyTarget "pavel" */ = {
+		E3ACBC8F140ACBF60002B495 /* Build configuration list for PBXLegacyTarget "pavel.xpi" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				E37B42E914097EA60025D823 /* Debug */,
-				E37B42EA14097EA60025D823 /* Release */,
+				E3ACBC90140ACBF60002B495 /* Debug */,
+				E3ACBC91140ACBF60002B495 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 		};
