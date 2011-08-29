@@ -6,6 +6,8 @@ let pavel = (function pavel() {
     // ctypes
     let libpoll = ctypes.open(ctypes.libraryName("poll"));
     let stdlib = ctypes.open(ctypes.libraryName("stdc++"));
+    let evwrap = ctypes.open(ctypes.libraryName("evwrap"));
+    let errno = evwrap.declare("err", ctypes.default_abi, ctypes.int);
     let pollfd = ctypes.StructType("pollfd",
         [{fd: ctypes.int},
         {events: ctypes.short},
@@ -23,6 +25,26 @@ let pavel = (function pavel() {
         0x80, 0x100,
         8, 0x10, 0x20];
 
+    let socket = stdlib.declare("socket", ctypes.default_abi, ctypes.int,
+        ctypes.int, ctypes.int, ctypes.int);
+    let htons = stdlib.declare("htons", ctypes.default_abi, ctypes.uint16_t, ctypes.uint16_t);
+    let hostent = ctypes.StructType("hostent",
+        [{h_name: ctypes.char.ptr},
+        {h_aliases: ctypes.char.ptr.ptr},
+        {h_addrtype: ctypes.int},
+        {h_length: ctypes.int},
+        {h_addr_list: ctypes.uint8_t.array(4).ptr.ptr}]);
+    let sockaddr_in = ctypes.StructType("sockaddr_in",
+        [{sin_family: ctypes.short},
+        {sin_port: ctypes.unsigned_short},
+        {sin_addr: ctypes.uint8_t.array(4)},
+        {sin_zero: ctypes.uint8_t.array(8)}]);
+    let sockaddr_p = ctypes.PointerType(sockaddr_in);
+    let gethostbyname = stdlib.declare("gethostbyname", ctypes.default_abi, hostent.ptr,
+        ctypes.char.ptr);
+    let connect = stdlib.declare("connect", ctypes.default_abi, ctypes.int,
+        ctypes.int, sockaddr_in.ptr, ctypes.int);
+
     // *************************************************************
     // Sleep
     function Sleep(time) {
@@ -31,7 +53,44 @@ let pavel = (function pavel() {
     }
     Sleep.prototype.getTime = function() {
         return this._time.getTime();
-    }    
+    }
+
+    // *************************************************************
+    // Socket
+    function Socket() {
+        // AF_INET 2
+        // SOCK_STREAM 1
+        // default protocol 0
+        this._fd = socket(2, 1, 0);
+    }
+    Socket.prototype.gethostbyname = function(name) {
+        // WARNING DANGER!!!
+        // This blocks.
+        var host = gethostbyname(name);
+        // Returns a list of four ints.
+        var contents = host.contents.h_addr_list.contents.contents;
+        return [contents[0], contents[1], contents[2], contents[3]];
+    }
+    Socket.prototype.connect = function(address, port) {
+        if (typeof address === "string") {
+            address = address.split('.');
+        }
+        let server_addr = new sockaddr_in(
+            {sin_family: 2, sin_port: htons(port), sin_addr: address,
+            sin_zero: [0,0,0,0,0,0,0,0]});
+        print(server_addr);
+        let rval = connect(this._fd, server_addr.address(), sockaddr_in.size);
+        if (rval) {
+            let err = errno();
+            throw new Error("Error connecting to " + address + " " + port + " (" + err + ")");
+        }
+    }
+
+    let sock = new Socket();
+    print(sock.gethostbyname("google.com"));
+    let result = sock.gethostbyname("localhost");
+    print(result);
+    sock.connect(result, 6000);
 
     // *************************************************************
     // Receive

@@ -2,4 +2,4 @@ rm -f pavel.xpi
 rm -f libevwrap.dylib
 gcc -O0 -c evwrap.c -o pavel/evwrap.o
 gcc -dynamiclib -compatibility_version 1 -current_version 1.0 -lev pavel/evwrap.o -o pavel/libevwrap.dylib
-sh build_mac.sh
+#:sh build_mac.sh

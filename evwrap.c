@@ -1,7 +1,13 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
 #include "evwrap.h"
+
+int err() {
+    printf("errno %d", errno);
+    return errno;
+}
 
 struct ev_timer * new_timer(struct ev_loop * the_loop, void (*cb)(struct ev_loop *loop, struct ev_timer *watcher, int revents), double after) {
 	struct ev_timer * the_timer = (ev_timer *)malloc(sizeof(ev_timer));
