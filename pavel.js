@@ -1,4 +1,6 @@
 
+"use strict";
+
 const MAX_FDS = 32;
 
 let pavel = (function pavel() {
@@ -7,22 +9,11 @@ let pavel = (function pavel() {
     let stdlib = ctypes.open(ctypes.libraryName("stdc++"));
     let evwrap = ctypes.open(ctypes.libraryName("evwrap"));
     let errno = evwrap.declare("err", ctypes.default_abi, ctypes.int);
-    let pollfd = ctypes.StructType("pollfd",
-        [{fd: ctypes.int},
-        {events: ctypes.short},
-        {revents: ctypes.short}]);
-    let fd_array_t = pollfd.array(MAX_FDS);
-    let malloc = stdlib.declare("malloc", ctypes.default_abi, ctypes.void_t.ptr, ctypes.int);
-    let free = stdlib.declare("free", ctypes.default_abi, ctypes.void_t, ctypes.void_t.ptr);
-    let nfds_t = ctypes.int;
     let [POLLIN, POLLPRI, POLLOUT,
-    POLLRDNORM, POLLWRNORM,
-    POLLRDBAND, POLLWRBAND,
-    POLLERR, POLLHUP, POLLNVAL] = [
-        1, 2, 4,
-        0x40, 4,
-        0x80, 0x100,
-        8, 0x10, 0x20];
+        POLLRDNORM, POLLWRNORM,
+        POLLRDBAND, POLLWRBAND,
+        POLLERR, POLLHUP, POLLNVAL] = [
+        1, 2, 4, 0x40, 4, 0x80, 0x100, 8, 0x10, 0x20];
 
     let socket = stdlib.declare("socket", ctypes.default_abi, ctypes.int,
         ctypes.int, ctypes.int, ctypes.int);
@@ -38,7 +29,6 @@ let pavel = (function pavel() {
         {sin_port: ctypes.unsigned_short},
         {sin_addr: ctypes.uint8_t.array(4)},
         {sin_zero: ctypes.uint8_t.array(8)}]);
-    let sockaddr_p = ctypes.PointerType(sockaddr_in);
     let gethostbyname = stdlib.declare("gethostbyname", ctypes.default_abi, hostent.ptr,
         ctypes.char.ptr);
     let connect = stdlib.declare("connect", ctypes.default_abi, ctypes.int,
@@ -53,11 +43,13 @@ let pavel = (function pavel() {
         let t = this._time = new Date();
         t.setTime(t.getTime() + time);
     }
-    Sleep.prototype.getTime = function() {
-        return this._time.getTime();
-    }
-    Sleep.prototype.toString = function() {
-        return "[object Sleep(" + this._time + ")]";
+    Sleep.prototype = {
+        getTime: function() {
+            return this._time.getTime();
+        },
+        toString: function() {
+            return "[object Sleep(" + this._time + ")]";
+        }
     }
 
     // *************************************************************
@@ -68,38 +60,40 @@ let pavel = (function pavel() {
         // default protocol 0
         this._fd = socket(2, 1, 0);
     }
-    Socket.prototype.gethostbyname = function(name) {
-        // WARNING DANGER!!!
-        // This blocks.
-        var host = gethostbyname(name);
-        // Returns a list of four ints.
-        var contents = host.contents.h_addr_list.contents.contents;
-        return [contents[0], contents[1], contents[2], contents[3]];
-    }
-    Socket.prototype.connect = function(address, port) {
-        if (typeof address === "string") {
-            address = address.split('.');
+    Socket.prototype = {
+        gethostbyname: function(name) {
+            // WARNING DANGER!!!
+            // This blocks.
+            var host = gethostbyname(name);
+            // Returns a list of four ints.
+            var contents = host.contents.h_addr_list.contents.contents;
+            return [contents[0], contents[1], contents[2], contents[3]];
+        },
+        connect: function(address, port) {
+            if (typeof address === "string") {
+                address = address.split('.');
+            }
+            let server_addr = new sockaddr_in(
+                {sin_family: 2, sin_port: htons(port), sin_addr: address,
+                sin_zero: [0,0,0,0,0,0,0,0]});
+            print(server_addr);
+            let rval = connect(this._fd, server_addr.address(), sockaddr_in.size);
+            if (rval) {
+                let err = errno();
+                throw new Error("Error connecting to " + address + " " + port + " (" + err + ")");
+            }
+        },
+        send: function(data) {
+            let arraytype = ctypes.char.array(data.length);
+            return send(this._fd, arraytype(data).address(), data.length, 0);
+        },
+        recv: function(howmuch) {
+            let carray = ctypes.char.array(howmuch)();
+            let received = recv(this._fd, carray.address(), howmuch, 0);
+            var recvstr = carray.readString();
+            recvstr.substring(0, received);
+            return recvstr;
         }
-        let server_addr = new sockaddr_in(
-            {sin_family: 2, sin_port: htons(port), sin_addr: address,
-            sin_zero: [0,0,0,0,0,0,0,0]});
-        print(server_addr);
-        let rval = connect(this._fd, server_addr.address(), sockaddr_in.size);
-        if (rval) {
-            let err = errno();
-            throw new Error("Error connecting to " + address + " " + port + " (" + err + ")");
-        }
-    }
-    Socket.prototype.send = function(data) {
-        let arraytype = ctypes.char.array(data.length);
-        return send(this._fd, arraytype(data).address(), data.length, 0);
-    }
-    Socket.prototype.recv = function(howmuch) {
-        let carray = ctypes.char.array(howmuch)();
-        let received = recv(this._fd, carray.address(), howmuch, 0);
-        var recvstr = carray.readString();
-        recvstr.substring(0, received);
-        return recvstr;
     }
 /*
     let sock = new Socket();
@@ -116,9 +110,12 @@ let pavel = (function pavel() {
         this._actor = actor;
         this._pattern = pattern;
         this._timeout = timeout;
+        this._start = 0;
     }
-    Receive.prototype.toString = function() {
-        return "[object Receive]";
+    Receive.prototype = {
+        toString: function() {
+            return "[object Receive]";
+        }
     }
 
     // *************************************************************
@@ -128,16 +125,16 @@ let pavel = (function pavel() {
         this._main = '(' + main.toString() + '())';
         let mailbox = this._mailbox = [];
         this._sandbox = evalcx("lazy");
-// temporary hack
-//        this._sandbox = {};
         this._sandbox.receive = function(pattern, timeout) {
             return new Receive(actor, pattern, timeout);
         };
         this._sandbox.wait = function(time) { return new Sleep(time) };
         this._sandbox.print = function(what) { print(what) };
     }
-    Actor.prototype.toString = function() {
-        return "[object Actor]";
+    Actor.prototype = {
+            toString: function() {
+            return "[object Actor]";
+        }
     }
 
     // *************************************************************
@@ -146,12 +143,14 @@ let pavel = (function pavel() {
         this._actor = actor;
         this._scheduler = scheduler;
     }
-    Address.prototype.cast = function(pattern, message) {
-        if (!message instanceof Address) {
-            JSON.stringify(message)
+    Address.prototype = {
+        cast: function(pattern, message) {
+            if (!message instanceof Address) {
+                JSON.stringify(message)
+            }
+            this._actor._mailbox.push([pattern.toString(), message]);
+            this._scheduler.schedule(this._actor);
         }
-        this._actor._mailbox.push([pattern.toString(), message]);
-        this._scheduler.schedule(this._actor);
     }
 
     // *************************************************************
@@ -165,116 +164,118 @@ let pavel = (function pavel() {
         }
         this._waiting_fds = 0;
         this._fds = fd_array_t(this._waiters);
+        let pollfd = ctypes.StructType("pollfd",
+            [{fd: ctypes.int},
+            {events: ctypes.short},
+            {revents: ctypes.short}]);
+        this._fd_array_t = pollfd.array(MAX_FDS);
         this._poll = stdlib.declare("poll", ctypes.default_abi, ctypes.int,
-            pollfd.ptr, nfds_t, ctypes.int);
+            pollfd.ptr, ctypes.int, ctypes.int);
     }
-    Pavel.prototype.schedule = function(actor) {
-        if (actor._running) {
-            return;
-        }
-        if (actor._recv) {
-            actor = actor._recv;
-            delete actor._recv;
-        }
-        this._readies.push(actor);
-    }
-    Pavel.prototype.sleep = function(timeout) {
-        this._poll(this._fds, this._waiting_fds, timeout);
-    }
-    Pavel.prototype.spawn = function(main) {
-        let actor = new Actor(main);
-        this._readies.push(actor);
-        return new Address(actor, this);
-    }
-    Pavel.prototype.drain = function(timeout) {
-        while (this._readies.length || this._timers.length) {
-            while (this._readies.length) {
-                let evt = this._readies.shift();
-                if (evt instanceof Actor) {
-                    if (evt._running) {
-                        continue;
-                    }
-                    try {
-                        let result = evt._sandbox.eval(evt._main);
-// temporary hack                        
-//                        let result = null;
-//                        with (evt._sandbox) {
-//                            result = eval(evt._main);
-//                        }
-                        evt._running = true;
-                        if (result && result.next) {
-                            this.schedule(result);
-                        }
-                    } catch (e) {
-                        print("Error in Actor:");
-                        print(evt._main.toString());
-                        print(e);
-                        print(e.stack);
-                    }
-                } else if (evt.next) {
-                    evt.toString = function() { return "[object Generator]" }
-                    let state;
-                    try {
-                        state = evt.next();
-                    } catch (e) {
-                        if (e instanceof StopIteration) {
+    Pavel.prototype = {
+        schedule: function(actor) {
+            if (actor._running) {
+                return;
+            }
+            if (actor._recv) {
+                actor = actor._recv;
+                delete actor._recv;
+            }
+            this._readies.push(actor);
+        },
+        sleep: function(timeout) {
+            this._poll(this._fds, this._waiting_fds, timeout);
+        },
+        spawn: function(main) {
+            let actor = new Actor(main);
+            this._readies.push(actor);
+            return new Address(actor, this);
+        },
+        drain: function(timeout) {
+            while (this._readies.length || this._timers.length) {
+                while (this._readies.length) {
+                    let evt = this._readies.shift();
+                    if (evt instanceof Actor) {
+                        if (evt._running) {
                             continue;
                         }
-                        throw e;
-                    }
-                    state._gen = evt;
-                    this.schedule(state);
-                } else if (evt instanceof Sleep) {
-                    this._timers.push(evt)
-                    this._timers.sort(function(a, b) {
-                        return ((a._time < b._time) ? -1 : ((a._time > b._time) ? 1 : 0));
-                    });
-                } else if (evt instanceof Receive) {
-                    let mb = evt._actor._mailbox;
-                    let pattern = evt._pattern;
-                    let l = mb.length;
-                    for (var i = 0; i < l; i++) {
-                        if (mb[i][0] === pattern) {
-                            break;
-                        }
-                    }
-                    if (i === l) {
-                        evt._actor._recv = evt;
-                    } else {
-                        // We found a match for our pattern
-                        let result = null;
                         try {
-                            result = evt._gen.send(mb[i][1]);
-                            mb.splice(i, 1);
+                            let result = evt._sandbox.eval(evt._main);
+                            evt._running = true;
+                            if (result && result.next) {
+                                this.schedule(result);
+                            }
+                        } catch (e) {
+                            print("Error in Actor:");
+                            print(evt._main.toString());
+                            print(e);
+                            print(e.stack);
+                        }
+                    } else if (evt.next) {
+                        let state;
+                        try {
+                            state = evt.next();
                         } catch (e) {
                             if (e instanceof StopIteration) {
                                 continue;
                             }
                             throw e;
                         }
-                        result._gen = evt._gen;
-                        delete evt._gen;
-                        this.schedule(result);
+                        state._gen = evt;
+                        this.schedule(state);
+                    } else if (evt instanceof Sleep) {
+                        this._timers.push(evt)
+                        this._timers.sort(function(a, b) {
+                            return ((a._time < b._time) ? -1 : ((a._time > b._time) ? 1 : 0));
+                        });
+                    } else if (evt instanceof Receive) {
+                        let mb = evt._actor._mailbox;
+                        let pattern = evt._pattern;
+                        let l = mb.length;
+                        for (var i = evt._start; i < l; i++) {
+                            if (mb[i][0] === pattern) {
+                                break;
+                            }
+                        }
+                        if (i === l) {
+                            evt._actor._recv = evt;
+                            evt._start = i;
+                        } else {
+                            // We found a match for our pattern
+                            let result = null;
+                            try {
+                                result = evt._gen.send(mb[i][1]);
+                                mb.splice(i, 1);
+                            } catch (e) {
+                                if (e instanceof StopIteration) {
+                                    continue;
+                                }
+                                throw e;
+                            }
+                            result._gen = evt._gen;
+                            delete evt._gen;
+                            this.schedule(result);
+                        }
+                    } else {
+                        throw new Error("Invalid event: " + evt.toString());
                     }
-                } else {
-                    throw new Error("Invalid event: " + evt.toString());
                 }
-            }
-            let now = new Date();
-            for (var i = 0, l = this._timers.length; i < l; i++) {
-                if (now < this._timers[i]._time) {
-                    break;
+                let now = new Date();
+                for (var i = 0, l = this._timers.length; i < l; i++) {
+                    if (now < this._timers[i]._time) {
+                        break;
+                    }
                 }
-            }
-            let timers = this._timers.splice(0, i);
-            while (timers.length) {
-                let timer = timers.shift();
-                this.schedule(timer._gen);
-                delete timer._gen;
-            }
-            if (!this._readies.length && this._timers.length) {
-                let sleepTime = (this._timers[0].getTime() - new Date().getTime());
-                this.sleep(sleepTime);
+                let timers = this._timers.splice(0, i);
+                while (timers.length) {
+                    let timer = timers.shift();
+                    this.schedule(timer._gen);
+                    delete timer._gen;
+                }
+                if (!this._readies.length && this._timers.length) {
+                    let sleepTime = (this._timers[0].getTime() - new Date().getTime());
+                    this.sleep(sleepTime);
+                }
             }
         }
     }
@@ -301,8 +302,8 @@ let act2 = pavel.spawn(function main() {
     message = yield receive("message");
     print("Act2 saw: " + message);
 });
-act2.cast("peer", act1);
 act1.cast("peer", act2);
+act2.cast("peer", act1);
 
 pavel.drain();
 
