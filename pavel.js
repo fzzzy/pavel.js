@@ -49,6 +49,12 @@ let pavel = (function pavel() {
         },
         toString: function() {
             return "[object Sleep(" + this._time + ")]";
+        },
+        ready: function(sched) {
+            sched._timers.push(this);
+            sched._timers.sort(function(a, b) {
+                return ((a._time < b._time) ? -1 : ((a._time > b._time) ? 1 : 0));
+            });
         }
     }
 
@@ -115,6 +121,35 @@ let pavel = (function pavel() {
     Receive.prototype = {
         toString: function() {
             return "[object Receive]";
+        },
+        ready: function(sched) {
+            let mb = this._actor._mailbox;
+            let pattern = this._pattern;
+            let l = mb.length;
+            for (var i = this._start; i < l; i++) {
+                if (mb[i][0] === pattern) {
+                    break;
+                }
+            }
+            if (i === l) {
+                this._actor._recv = evt;
+                this._start = i;
+            } else {
+                // We found a match for our pattern
+                let result = null;
+                try {
+                    result = this._gen.send(mb[i][1]);
+                    mb.splice(i, 1);
+                } catch (e) {
+                    if (e instanceof StopIteration) {
+                        return;
+                    }
+                    throw e;
+                }
+                result._gen = this._gen;
+                delete this._gen;
+                sched.schedule(result);
+            }
         }
     }
 
@@ -134,7 +169,25 @@ let pavel = (function pavel() {
     Actor.prototype = {
             toString: function() {
             return "[object Actor]";
+        },
+        ready: function(sched) {
+            if (this._running) {
+                return;
+            }
+            try {
+                let result = this._sandbox.eval(this._main);
+                this._running = true;
+                if (result && result.next) {
+                    sched.schedule(result);
+                }
+            } catch (e) {
+                print("Error in Actor:");
+                print(this._main.toString());
+                print(e);
+                print(e.stack);
+            }
         }
+
     }
 
     // *************************************************************
@@ -163,12 +216,12 @@ let pavel = (function pavel() {
             this._waiters[i] = {fd: 0, events: 0, revents: 0};
         }
         this._waiting_fds = 0;
-        this._fds = fd_array_t(this._waiters);
         let pollfd = ctypes.StructType("pollfd",
             [{fd: ctypes.int},
             {events: ctypes.short},
             {revents: ctypes.short}]);
         this._fd_array_t = pollfd.array(MAX_FDS);
+        this._fds = this._fd_array_t(this._waiters);
         this._poll = stdlib.declare("poll", ctypes.default_abi, ctypes.int,
             pollfd.ptr, ctypes.int, ctypes.int);
     }
@@ -195,22 +248,8 @@ let pavel = (function pavel() {
             while (this._readies.length || this._timers.length) {
                 while (this._readies.length) {
                     let evt = this._readies.shift();
-                    if (evt instanceof Actor) {
-                        if (evt._running) {
-                            continue;
-                        }
-                        try {
-                            let result = evt._sandbox.eval(evt._main);
-                            evt._running = true;
-                            if (result && result.next) {
-                                this.schedule(result);
-                            }
-                        } catch (e) {
-                            print("Error in Actor:");
-                            print(evt._main.toString());
-                            print(e);
-                            print(e.stack);
-                        }
+                    if (evt.ready) {
+                        evt.ready(this);
                     } else if (evt.next) {
                         let state;
                         try {
@@ -223,39 +262,6 @@ let pavel = (function pavel() {
                         }
                         state._gen = evt;
                         this.schedule(state);
-                    } else if (evt instanceof Sleep) {
-                        this._timers.push(evt)
-                        this._timers.sort(function(a, b) {
-                            return ((a._time < b._time) ? -1 : ((a._time > b._time) ? 1 : 0));
-                        });
-                    } else if (evt instanceof Receive) {
-                        let mb = evt._actor._mailbox;
-                        let pattern = evt._pattern;
-                        let l = mb.length;
-                        for (var i = evt._start; i < l; i++) {
-                            if (mb[i][0] === pattern) {
-                                break;
-                            }
-                        }
-                        if (i === l) {
-                            evt._actor._recv = evt;
-                            evt._start = i;
-                        } else {
-                            // We found a match for our pattern
-                            let result = null;
-                            try {
-                                result = evt._gen.send(mb[i][1]);
-                                mb.splice(i, 1);
-                            } catch (e) {
-                                if (e instanceof StopIteration) {
-                                    continue;
-                                }
-                                throw e;
-                            }
-                            result._gen = evt._gen;
-                            delete evt._gen;
-                            this.schedule(result);
-                        }
                     } else {
                         throw new Error("Invalid event: " + evt.toString());
                     }
