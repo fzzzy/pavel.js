@@ -51,10 +51,7 @@ let pavel = (function pavel() {
             return "[object Sleep(" + this._time + ")]";
         },
         ready: function(sched) {
-            sched._timers.push(this);
-            sched._timers.sort(function(a, b) {
-                return ((a._time < b._time) ? -1 : ((a._time > b._time) ? 1 : 0));
-            });
+            sched.schedule_timer(this);
         }
     }
 
@@ -120,7 +117,7 @@ let pavel = (function pavel() {
     }
     Receive.prototype = {
         toString: function() {
-            return "[object Receive]";
+            return "[object Receive(" + this._pattern + ")]";
         },
         ready: function(sched) {
             let mb = this._actor._mailbox;
@@ -171,14 +168,20 @@ let pavel = (function pavel() {
             return "[object Actor]";
         },
         ready: function(sched) {
-            if (this._running) {
-                return;
-            }
+            if (this._running) return;
             try {
-                let result = this._sandbox.eval(this._main);
+                let state = this._sandbox.eval(this._main);
+                let next = null;
                 this._running = true;
-                if (result && result.next) {
-                    sched.schedule(result);
+                if (state && state.next) {
+                    try {
+                        next = state.next();
+                    } catch (e) {
+                        if (e instanceof StopIteration) return;
+                        throw e;
+                    }
+                    next._gen = state;
+                    sched.schedule(next);
                 }
             } catch (e) {
                 print("Error in Actor:");
@@ -236,6 +239,15 @@ let pavel = (function pavel() {
             }
             this._readies.push(actor);
         },
+        schedule_timer: function(timer) {
+            sched._timers.push(timer);
+            sched._timers.sort(function(a, b) {
+                return ((a._time < b._time) ? -1 : ((a._time > b._time) ? 1 : 0));
+            });
+        },
+        schedule_io: function(read, write, timeout) {
+        
+        },
         sleep: function(timeout) {
             this._poll(this._fds, this._waiting_fds, timeout);
         },
@@ -250,18 +262,6 @@ let pavel = (function pavel() {
                     let evt = this._readies.shift();
                     if (evt.ready) {
                         evt.ready(this);
-                    } else if (evt.next) {
-                        let state;
-                        try {
-                            state = evt.next();
-                        } catch (e) {
-                            if (e instanceof StopIteration) {
-                                continue;
-                            }
-                            throw e;
-                        }
-                        state._gen = evt;
-                        this.schedule(state);
                     } else {
                         throw new Error("Invalid event: " + evt.toString());
                     }
