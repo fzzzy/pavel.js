@@ -86,6 +86,8 @@ let [cast, wait, receive, connect] = (function ActorMain() {
             } else if (next instanceof SuspendUntil) {
                 if (next._pattern === "msg") {
                     _pattern = next._message;
+                } else if (next._pattern === "wait") {
+                    _pattern = "wait";
                 }
                 _schedule_event(next._pattern, next._message);
             } else if (next instanceof Socket) {
@@ -117,7 +119,6 @@ let [cast, wait, receive, connect] = (function ActorMain() {
             } else if (next && next.next) {
                 gen_stack.push(next);
                 next = next.next();
-                return _actor_main();
             } else if (next === undefined) {
                 print("undef");
                 return;

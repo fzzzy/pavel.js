@@ -46,8 +46,9 @@ let pavel = (function pavel() {
             } else if (msg === "recv") {
                 sched.iowait(actor, data[0], true, false, data[1]);
             } else if (msg === "close") {
-                actor._sockets[data].close();
-                delete actor._sockets[data];
+                actor._sockets[data[0]].close();
+                delete actor._sockets[data[0]];
+                actor._cast("close", data[0]);
             } else {
                 print("unhandled message", msg, data);
             }
@@ -172,11 +173,11 @@ let pavel = (function pavel() {
                     this.sleep(sleepTime);
                 }
             }
-            print("done", this.timers, Object.keys(this.waiters));
         }
     }
     return new Pavel();
 }());
+
 
 let act1 = pavel.spawn(function main() {
     let peer = yield receive("peer");
@@ -216,20 +217,25 @@ let act3 = pavel.spawn(function main() {
     print(":::: we sent");
     let got = yield sock.recv(32);
     print(":::: we got", got);
+    yield sock.close();
+    print(":::: we closed");
 });
-/*
+
+
 let act4 = pavel.spawn(function main() {
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 7; i++) {
         print("hi!");
         yield wait(333);
     }
 });
 let act5 = pavel.spawn(function main() {
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 13; i++) {
         print("bye!");
         yield wait(222);
     }
-});*/
+});
+
+
 pavel.drain();
 
 
