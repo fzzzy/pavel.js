@@ -15,6 +15,8 @@
 		E37B42F1140A023D0025D823 /* ev.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ev.h; path = "../libev-4.04/ev.h"; sourceTree = "<group>"; };
 		E37B42F3140A1EA70025D823 /* CTypes.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = CTypes.cpp; path = "../mozilla-central/js/src/ctypes/CTypes.cpp"; sourceTree = "<group>"; };
 		E37B42F8140A2AA50025D823 /* CTypes.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CTypes.h; path = "../mozilla-central/js/src/ctypes/CTypes.h"; sourceTree = "<group>"; };
+		E37D8A2F140EEFDA005107C1 /* socket.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; path = socket.js; sourceTree = "<group>"; };
+		E37D8A31140EF3A1005107C1 /* actormain.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; path = actormain.js; sourceTree = "<group>"; };
 		E3ACBC8C140ACBDC0002B495 /* build */ = {isa = PBXFileReference; lastKnownFileType = text; path = build; sourceTree = "<group>"; };
 		E3ACBC93140ADED40002B495 /* pavel */ = {isa = PBXFileReference; lastKnownFileType = folder; path = pavel; sourceTree = "<group>"; };
 		E3ACBC95140AFF5B0002B495 /* pavel.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; path = pavel.js; sourceTree = "<group>"; };
@@ -24,7 +26,9 @@
 		E37B42DE14097EA60025D823 = {
 			isa = PBXGroup;
 			children = (
+				E37D8A2F140EEFDA005107C1 /* socket.js */,
 				E3ACBC95140AFF5B0002B495 /* pavel.js */,
+				E37D8A31140EF3A1005107C1 /* actormain.js */,
 				E3ACBC93140ADED40002B495 /* pavel */,
 				E3ACBC8C140ACBDC0002B495 /* build */,
 				E376680E140ACB6100A04012 /* install.rdf */,
@@ -162,6 +166,7 @@
 				E3ACBC91140ACBF60002B495 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
