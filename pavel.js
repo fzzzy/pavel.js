@@ -1,12 +1,6 @@
 
 "use strict";
 
-let stdlib = ctypes.open(ctypes.libraryName("stdc++"));
-let pollfd = ctypes.StructType("pollfd",
-    [{fd: ctypes.int},
-    {events: ctypes.short},
-    {revents: ctypes.short}]);
-
 let pavel = (function pavel() {
     let socket = evalcx("lazy");
     socket.ctypes = ctypes;
@@ -18,6 +12,12 @@ let pavel = (function pavel() {
         this._recv = recv;
         this._send = send;
         this._data = data;
+    }
+    Wait.prototype = {
+        toString: function toString() {
+            return ("[object Wait(" + this._fd + ", " +
+                this._recv ? "recv" : this._send ? "send" : ""
+                + ", " + this._data + ")]") }
     }
 
     // *************************************************************
@@ -35,6 +35,8 @@ let pavel = (function pavel() {
         sandbox._schedule_event = function(msg, data) {
             if (msg === "wait") {
                 sched.timer(actor, data);
+            } else if (msg === "runnable") {
+                sched.runnable.push(actor);
             } else if (msg === "msg") {
                 // do nothing, waiting for a message
             } else if (msg === "connect") {
@@ -66,9 +68,12 @@ let pavel = (function pavel() {
             } else {
                 msg = JSON.stringify(msg);
             }
-            let evalstr = "cast('" + pattern.toString() + "', " + msg + ");";
+            let evalstr = "_cast('" + pattern.toString() + "', " + msg + ");";
             evalcx(evalstr, this._sandbox);
             delete this._sandbox._address;
+        },
+        _resume: function _resume() {
+            evalcx("_resume()", this._sandbox);
         }
     }
 
@@ -85,9 +90,18 @@ let pavel = (function pavel() {
     // Pavel
     function Pavel() {
         this.timers = [];
+        this.runnable = [];
         this.waiters = {};
-        this._poll = stdlib.declare("poll", ctypes.default_abi, ctypes.int,
-            pollfd.ptr, ctypes.int, ctypes.int);
+
+        this.pollfd = ctypes.StructType("pollfd",
+            [{fd: ctypes.int},
+            {events: ctypes.short},
+            {revents: ctypes.short}]);
+        this.null_fd_array = this.pollfd.array(0)();
+        this._poll = ctypes.open(
+            ctypes.libraryName("stdc++")
+        ).declare("poll", ctypes.default_abi, ctypes.int,
+            this.pollfd.ptr, ctypes.int, ctypes.int);
     }
     Pavel.prototype = {
         toString: function() {
@@ -103,26 +117,17 @@ let pavel = (function pavel() {
             this.waiters[fd] = new Wait(actor, fd, read, write, data);
         },
         _gen_poll_list: function _gen_poll_list() {
-            let waiters = [];
+            let wait_list = [];
             for (var i in this.waiters) {
                 let wait = this.waiters[i];
-                waiters.push({
-                    fd: wait._fd,
-                    events: (
-                        (wait._send ? socket.POLLOUT : 0) +
-                        (wait._recv ? socket.POLLIN : 0)),
-                    revents: 0});
+                let evt = ((wait._send ? socket.POLLOUT : 0) + (wait._recv ? socket.POLLIN : 0))
+                wait_list.push({fd: wait._fd, events: evt, revents: 0});
             }
-            let fd_array = null;
-            let length = 0;
-            if (waiters.length) {
-                let fd_array_t = pollfd.array(waiters.length);
-                fd_array = new fd_array_t(waiters);
-                length = waiters.length;
-            } else {
-                fd_array = pollfd.array(0)();
+            if (wait_list.length) {
+                let fd_array_t = this.pollfd.array(wait_list.length);
+                return new fd_array_t(wait_list);
             }
-            return fd_array;
+            return this.null_fd_array;
         },
         sleep: function sleep(timeout) {
             let fd_array = this._gen_poll_list();
@@ -148,13 +153,19 @@ let pavel = (function pavel() {
         },
         spawn: function spawn(main) {
             let actor = new Actor(this, main.toString());
-            actor._cast("spawn", true);
+            this.runnable.push(actor);
             return new Address(actor);
         },
         drain: function drain(timeout) {
-            while (this.timers.length || Object.keys(this.waiters).length) {
+            while (this.runnable.length || this.timers.length || Object.keys(this.waiters).length) {
+                let runnable = this.runnable;
+                this.runnable = [];
+                let i = 0, l = runnable.length;
+                for ( ; i < l; i++) {
+                    runnable[i]._resume();
+                }
                 let now = new Date();
-                for (var i = 0, l = this.timers.length; i < l; i++) {
+                for (i = 0, l = this.timers.length ; i < l; i++) {
                     if (now < this.timers[i][0]) {
                         break;
                     }

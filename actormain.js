@@ -1,11 +1,10 @@
 
 
-let [cast, wait, receive, connect] = (function ActorMain() {
+let [_cast, _resume, wait, receive, connect] = (function ActorMain() {
     let _mailbox = [];
+    let _gen_stack = [];
     let _pattern = null;
-    let top_gen = null;
-    let next = null;
-    let gen_stack = [];
+    let _next = null;
 
     function Result(val) {
         this._val = val;
@@ -16,29 +15,29 @@ let [cast, wait, receive, connect] = (function ActorMain() {
 
     function Socket(host, port) {
         this._fd = null;
-        this._message = ["connect", host, port];
     }
     Socket.prototype = {
         toString: function() { return "[object Socket(" + this._fd + ")]"; },
         recv: function recv(howmuch) {
-            this._message = ["recv", howmuch];
-            let r = yield this;
+            _schedule_event("recv", [this._fd, howmuch]);
+            let r = yield new SuspendUntil("recv");
             yield result(r[1]);
         },
         send: function send(data) {
-            this._message = ["send", data];
-            let r = yield this;
+            _schedule_event("send", [this._fd, data]);
+            let r = yield new SuspendUntil("send");
             yield result(r[1]);
         },
         close: function close() {
-            this._message = ["close"];
-            yield this;
+            _schedule_event("close", [this._fd]);
+            yield new SuspendUntil("close");
         }
     }
 
     function connect(host, port) {
         let sock = new Socket(host, port);
-        sock._fd = yield sock;
+        _schedule_event("connect", [host, port]);
+        sock._fd = yield new SuspendUntil("connect");
         yield result(sock);
     }
 
@@ -51,93 +50,73 @@ let [cast, wait, receive, connect] = (function ActorMain() {
             return "[object SuspendUntil('" + this._pattern + "', '" + this._message + "')]";
         }
     }
+
     function wait(time) {
         let t = this._time = new Date();
         t.setTime(t.getTime() + time);
-        return new SuspendUntil("wait", t);
+        _schedule_event("wait", t);
+        return new SuspendUntil("wait");
     }
+
     function receive(pattern) {
-        return new SuspendUntil("msg", pattern);
+        return new SuspendUntil(pattern);
     }
 
     function _actor_main() {
-        if (top_gen === null) {
-            top_gen = eval(_script);
-            next = top_gen.next();
-            gen_stack = [top_gen];
+        if (!_gen_stack.length) {
+            _gen_stack = [eval(_script)];
+            _next = _gen_stack[0].next();
         }
 
-        while (next) {
+        while (_next) {
             if (_pattern) {
-                let mb = _mailbox;
-                let l = mb.length;
                 let i = 0;
-                for ( ; i < l; i++) {
-                    if (mb[i][0] === _pattern) {
-                        break;
-                    }
+                for ( ; i < _mailbox.length; i++) {
+                    if (_mailbox[i][0] === _pattern) break;
                 }
-                if (i === l) { return; } else {
-                    _pattern = null;
-                    // We found a match for our pattern
-                    next = result(mb[i][1]);
-                    mb.splice(i, 1);
-                }
-            } else if (next instanceof SuspendUntil) {
-                if (next._pattern === "msg") {
-                    _pattern = next._message;
-                } else if (next._pattern === "wait") {
-                    _pattern = "wait";
-                }
-                _schedule_event(next._pattern, next._message);
-            } else if (next instanceof Socket) {
-                _pattern = next._message[0];
-                if (_pattern === "connect") {
-                    _schedule_event(_pattern, [next._message[1], next._message[2]]);
+                if (i === _mailbox.length) {
+                    return;
                 } else {
-                    _schedule_event(_pattern, [next._fd, next._message[1]]);
+                    // We found a match for our pattern
+                    _pattern = null;
+                    _next = result(_mailbox[i][1]);
+                    _mailbox.splice(i, 1);
                 }
-            } else if (next instanceof Result) {
+            } else if (_next instanceof SuspendUntil) {
+                _pattern = _next._pattern;
+                return;
+            } else if (_next instanceof Result) {
                 // a value to pump into a generator
                 try {
-                    next = gen_stack[gen_stack.length - 1].send(next._val);
+                    _next = _gen_stack[_gen_stack.length - 1].send(_next._val);
                 } catch (e) {
                     if (e instanceof StopIteration) {
-                        gen_stack.pop();
-                        if (!gen_stack.length) return;
-                    } else if (e instanceof TypeError) {
-                        // If we got a "generator already running" error
-                        // then code is synchronously ping-ponging between
-                        // actors on the same stack, and we have to drop back
-                        // to the main loop and wait until this generator is not
-                        // running before we can crank it again.
-                        return;
+                        _gen_stack.pop();
+                        if (!_gen_stack.length) return;
                     } else {
                         throw e;
                     }
                 }
-            } else if (next && next.next) {
-                gen_stack.push(next);
-                next = next.next();
-            } else if (next === undefined) {
-                print("undef");
-                return;
-            } else {
-                print("unknown");
+            } else if (_next && _next.next) {
+                _gen_stack.push(_next);
+                _next = _next.next();
             }
         }
     }
     function cast(pattern, message) {
         _mailbox.push([pattern, message]);
+        _schedule_event("runnable");
+    }
+    function resume() {
         try {
             return _actor_main();
         } catch (e) {
-            if (e instanceof StopIteration) { return; }
+            if (e instanceof StopIteration) return;
             print('Error in Actor:');
             print(e);
             print(e.stack);
         }
     }
-    return [cast, wait, receive, connect];
+    return [cast, resume, wait, receive, connect];
 }());
 
