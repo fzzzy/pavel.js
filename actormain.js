@@ -7,6 +7,13 @@ let [cast, wait, receive, connect] = (function ActorMain() {
     let next = null;
     let gen_stack = [];
 
+    function Result(val) {
+        this._val = val;
+    }
+    function result(val) {
+        return new Result(val);
+    }
+
     function Socket(host, port) {
         this._fd = null;
         this._message = ["connect", host, port];
@@ -15,12 +22,13 @@ let [cast, wait, receive, connect] = (function ActorMain() {
         toString: function() { return "[object Socket(" + this._fd + ")]"; },
         recv: function recv(howmuch) {
             this._message = ["recv", howmuch];
-            let result = yield this;
-            yield result[1];
+            let r = yield this;
+            yield result(r[1]);
         },
         send: function send(data) {
             this._message = ["send", data];
-            let result = yield this;
+            let r = yield this;
+            yield result(r[1]);
         },
         close: function close() {
             this._message = ["close"];
@@ -31,6 +39,7 @@ let [cast, wait, receive, connect] = (function ActorMain() {
     function connect(host, port) {
         let sock = new Socket(host, port);
         sock._fd = yield sock;
+        yield result(sock);
     }
 
     function SuspendUntil(pattern, message) {
@@ -71,18 +80,8 @@ let [cast, wait, receive, connect] = (function ActorMain() {
                 if (i === l) { return; } else {
                     _pattern = null;
                     // We found a match for our pattern
-                    try {
-                        next = gen_stack[gen_stack.length - 1].send(mb[i][1]);
-                        mb.splice(i, 1);
-                    } catch (e) {
-                        if (e instanceof StopIteration) {
-                            gen_stack.pop();
-                            next = gen_stack[gen_stack.length - 1].send(next);
-                            _actor_main();
-                        } else {
-                            throw e;
-                        }
-                    }
+                    next = result(mb[i][1]);
+                    mb.splice(i, 1);
                 }
             } else if (next instanceof SuspendUntil) {
                 if (next._pattern === "msg") {
@@ -96,6 +95,25 @@ let [cast, wait, receive, connect] = (function ActorMain() {
                 } else {
                     _schedule_event(_pattern, [next._fd, next._message[1]]);
                 }
+            } else if (next instanceof Result) {
+                // a value to pump into a generator
+                try {
+                    next = gen_stack[gen_stack.length - 1].send(next._val);
+                } catch (e) {
+                    if (e instanceof StopIteration) {
+                        gen_stack.pop();
+                        if (!gen_stack.length) return;
+                    } else if (e instanceof TypeError) {
+                        // If we got a "generator already running" error
+                        // then code is synchronously ping-ponging between
+                        // actors on the same stack, and we have to drop back
+                        // to the main loop and wait until this generator is not
+                        // running before we can crank it again.
+                        return;
+                    } else {
+                        throw e;
+                    }
+                }
             } else if (next && next.next) {
                 gen_stack.push(next);
                 next = next.next();
@@ -104,10 +122,7 @@ let [cast, wait, receive, connect] = (function ActorMain() {
                 print("undef");
                 return;
             } else {
-                // anything else must be a return value from a generator
-                gen_stack.pop();
-                next = gen_stack[gen_stack.length - 1].send(next);
-                return;
+                print("unknown");
             }
         }
     }
