@@ -74,24 +74,19 @@ Socket.prototype = {
         }
     },
     send: function(data) {
-        print("socksend", Object.keys(this));
-        print("socksend", data, data.length);
         let arraytype = ctypes.char.array(data.length);
         this._send = true;
-        yield this;
         let result = c_send(this._fd, arraytype(data).address(), data.length, 0);
-        print("gengen", this._gen);
-        yield this.send(result);
+        return result;
     },
     recv: function(howmuch) {
         let carray = ctypes.char.array(howmuch)();
-        this._recv = true;
-        yield this;
         let received = c_recv(this._fd, carray.address(), howmuch, 0);
         var recvstr = carray.readString();
         recvstr.substring(0, received);
-        print("RECRVRECCV");
-        yield recvstr;
+        return recvstr;
+    },
+    close: function() {
     }
 }
 /*
