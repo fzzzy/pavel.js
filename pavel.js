@@ -2,6 +2,7 @@
 "use strict";
 
 let pavel = (function pavel() {
+    let main_loop = null;
     let socket = evalcx("lazy");
     socket.ctypes = ctypes;
     evalcx(read("socket.js"), socket);
@@ -29,16 +30,18 @@ let pavel = (function pavel() {
         this._sandbox = sandbox;
         this._sockets = {};
 
-        sandbox._script = '(' + main.toString() + '())';
+        main = main.replace(".", "/") + ".js";
+        sandbox._script = '(function() {\n' + read(main) + '\nyield null;\n}());';
         evalcx(read("actormain.js"), sandbox);
         sandbox.print = print;
+        sandbox.spawn = function(module) {
+            return main_loop.spawn(module);
+        };
         sandbox._schedule_event = function(msg, data) {
             if (msg === "wait") {
                 sched.timer(actor, data);
             } else if (msg === "runnable") {
                 sched.runnable.push(actor);
-            } else if (msg === "msg") {
-                // do nothing, waiting for a message
             } else if (msg === "connect") {
                 let sock = socket.connect(data[0], data[1]);
                 actor._sockets[sock._fd] = sock;
@@ -54,7 +57,7 @@ let pavel = (function pavel() {
             } else {
                 print("unhandled message", msg, data);
             }
-        }
+        };
     }
     Actor.prototype = {
         toString: function toString() {
@@ -152,7 +155,7 @@ let pavel = (function pavel() {
             }
         },
         spawn: function spawn(main) {
-            let actor = new Actor(this, main.toString());
+            let actor = new Actor(this, main);
             this.runnable.push(actor);
             return new Address(actor);
         },
@@ -186,77 +189,9 @@ let pavel = (function pavel() {
             }
         }
     }
-    return new Pavel();
+    main_loop = new Pavel();
+    return main_loop;
 }());
 
-
-let act1 = pavel.spawn(function main() {
-    let peer = yield receive("peer");
-    peer.cast("message", "foo");
-    let message = yield receive("message");
-    print("Act1 saw: " + message);
-    peer.cast("message", "baz");
-    message = yield receive("message");
-    print("Act1 saw: " + message);
-    peer.cast("message", "foom");
-    message = yield receive("message");
-    print("Act1 saw: " + message);
-});
-
-let act2 = pavel.spawn(function main() {
-    let peer = yield receive("peer");
-    peer.cast("message", "bar");
-    let message = yield receive("message");
-    print("Act2 saw: " + message);
-    peer.cast("message", "frotz");
-    message = yield receive("message");
-    print("Act2 saw: " + message);
-    peer.cast("message", "xyzzy");
-    message = yield receive("message");
-    print("Act2 saw: " + message);
-});
-
-act2.cast("peer", act1);
-act1.cast("peer", act2);
-
-
-let act3 = pavel.spawn(function main() {
-    print(":::: start");
-    let sock = yield connect("localhost", 6000);
-    print(":::: we connected", sock, Object.keys(sock));
-    yield sock.send("hello");
-    print(":::: we sent");
-    let got = yield sock.recv(32);
-    print(":::: we got", got);
-    yield sock.close();
-    print(":::: we closed");
-});
-
-
-let act4 = pavel.spawn(function main() {
-    for (let i = 0; i < 7; i++) {
-        print("hi!");
-        yield wait(333);
-    }
-});
-let act5 = pavel.spawn(function main() {
-    for (let i = 0; i < 13; i++) {
-        print("bye!");
-        yield wait(222);
-    }
-});
-
-
 pavel.drain();
-
-
-
-
-
-
-
-
-
-
-
 

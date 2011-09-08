@@ -20,6 +20,8 @@
 		E3ACBC8C140ACBDC0002B495 /* build */ = {isa = PBXFileReference; lastKnownFileType = text; path = build; sourceTree = "<group>"; };
 		E3ACBC93140ADED40002B495 /* pavel */ = {isa = PBXFileReference; lastKnownFileType = folder; path = pavel; sourceTree = "<group>"; };
 		E3ACBC95140AFF5B0002B495 /* pavel.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; path = pavel.js; sourceTree = "<group>"; };
+		E3D8A9F514182BD00026887C /* tests */ = {isa = PBXFileReference; lastKnownFileType = folder; path = tests; sourceTree = "<group>"; };
+		E3D8A9F7141935430026887C /* run */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = run; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -28,7 +30,9 @@
 			children = (
 				E37D8A2F140EEFDA005107C1 /* socket.js */,
 				E3ACBC95140AFF5B0002B495 /* pavel.js */,
+				E3D8A9F7141935430026887C /* run */,
 				E37D8A31140EF3A1005107C1 /* actormain.js */,
+				E3D8A9F514182BD00026887C /* tests */,
 				E3ACBC93140ADED40002B495 /* pavel */,
 				E3ACBC8C140ACBDC0002B495 /* build */,
 				E376680E140ACB6100A04012 /* install.rdf */,

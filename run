@@ -1,0 +1,11 @@
+#! /usr/bin/env cjs
+
+try {
+    run('pavel.js');
+    pavel.spawn('tests.all');
+    pavel.drain()
+} catch (e) {
+    print(e);
+    print(e.stack)
+}
+
