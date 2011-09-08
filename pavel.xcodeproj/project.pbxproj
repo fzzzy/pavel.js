@@ -7,18 +7,9 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		E376680E140ACB6100A04012 /* install.rdf */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = install.rdf; sourceTree = "<group>"; };
 		E3766810140ACB6100A04012 /* readme.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = readme.txt; sourceTree = "<group>"; };
-		E37B42ED1409E63A0025D823 /* evwrap.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = evwrap.c; sourceTree = "<group>"; };
-		E37B42EF1409E9E20025D823 /* evwrap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = evwrap.h; sourceTree = "<group>"; };
-		E37B42F0140A023D0025D823 /* ev.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = ev.c; path = "../libev-4.04/ev.c"; sourceTree = "<group>"; };
-		E37B42F1140A023D0025D823 /* ev.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ev.h; path = "../libev-4.04/ev.h"; sourceTree = "<group>"; };
-		E37B42F3140A1EA70025D823 /* CTypes.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = CTypes.cpp; path = "../mozilla-central/js/src/ctypes/CTypes.cpp"; sourceTree = "<group>"; };
-		E37B42F8140A2AA50025D823 /* CTypes.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CTypes.h; path = "../mozilla-central/js/src/ctypes/CTypes.h"; sourceTree = "<group>"; };
 		E37D8A2F140EEFDA005107C1 /* socket.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; path = socket.js; sourceTree = "<group>"; };
 		E37D8A31140EF3A1005107C1 /* actormain.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; path = actormain.js; sourceTree = "<group>"; };
-		E3ACBC8C140ACBDC0002B495 /* build */ = {isa = PBXFileReference; lastKnownFileType = text; path = build; sourceTree = "<group>"; };
-		E3ACBC93140ADED40002B495 /* pavel */ = {isa = PBXFileReference; lastKnownFileType = folder; path = pavel; sourceTree = "<group>"; };
 		E3ACBC95140AFF5B0002B495 /* pavel.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; path = pavel.js; sourceTree = "<group>"; };
 		E3D8A9F514182BD00026887C /* tests */ = {isa = PBXFileReference; lastKnownFileType = folder; path = tests; sourceTree = "<group>"; };
 		E3D8A9F7141935430026887C /* run */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = run; sourceTree = "<group>"; };
@@ -33,16 +24,7 @@
 				E3D8A9F7141935430026887C /* run */,
 				E37D8A31140EF3A1005107C1 /* actormain.js */,
 				E3D8A9F514182BD00026887C /* tests */,
-				E3ACBC93140ADED40002B495 /* pavel */,
-				E3ACBC8C140ACBDC0002B495 /* build */,
-				E376680E140ACB6100A04012 /* install.rdf */,
 				E3766810140ACB6100A04012 /* readme.txt */,
-				E37B42F3140A1EA70025D823 /* CTypes.cpp */,
-				E37B42F8140A2AA50025D823 /* CTypes.h */,
-				E37B42EF1409E9E20025D823 /* evwrap.h */,
-				E37B42ED1409E63A0025D823 /* evwrap.c */,
-				E37B42F0140A023D0025D823 /* ev.c */,
-				E37B42F1140A023D0025D823 /* ev.h */,
 			);
 			sourceTree = "<group>";
 		};

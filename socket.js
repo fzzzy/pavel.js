@@ -2,8 +2,7 @@
 // *************************************************************
 // ctypes
 let stdlib = ctypes.open(ctypes.libraryName("stdc++"));
-let evwrap = ctypes.open(ctypes.libraryName("evwrap"));
-let errno = evwrap.declare("err", ctypes.default_abi, ctypes.int);
+let errno = stdlib.declare("err", ctypes.default_abi, ctypes.int);
 let [POLLIN, POLLPRI, POLLOUT,
     POLLRDNORM, POLLWRNORM,
     POLLRDBAND, POLLWRBAND,

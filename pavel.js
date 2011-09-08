@@ -30,7 +30,7 @@ let pavel = (function pavel() {
         this._sandbox = sandbox;
         this._sockets = {};
 
-        main = main.replace(".", "/") + ".js";
+        print("Spawning", main);
         sandbox._script = '(function() {\n' + read(main) + '\nyield null;\n}());';
         evalcx(read("actormain.js"), sandbox);
         sandbox.print = print;

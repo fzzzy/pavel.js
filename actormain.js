@@ -41,13 +41,12 @@ let [_cast, _resume, wait, receive, connect] = (function ActorMain() {
         yield result(sock);
     }
 
-    function SuspendUntil(pattern, message) {
+    function SuspendUntil(pattern) {
         this._pattern = pattern;
-        this._message = message;
     }
     SuspendUntil.prototype = {
         toString: function tostring() {
-            return "[object SuspendUntil('" + this._pattern + "', '" + this._message + "')]";
+            return "[object SuspendUntil('" + this._pattern + "')]";
         }
     }
 

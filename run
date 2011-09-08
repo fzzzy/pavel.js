@@ -1,11 +1,14 @@
 #! /usr/bin/env cjs
 
 try {
+    print("Pavel starting:", new Date());
     run('pavel.js');
-    pavel.spawn('tests.all');
+    pavel.spawn('tests/all.ja');
     pavel.drain()
 } catch (e) {
+    print("Exception in main:");
     print(e);
+    print(Object.keys(e));
     print(e.stack)
 }
 
