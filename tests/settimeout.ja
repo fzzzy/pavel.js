@@ -1,0 +1,11 @@
+
+
+print("test!");
+setTimeout(function() {
+    print("another-timer!", new Date());
+}, 3000);
+setTimeout(function() {
+    print("timer!", new Date());
+}, 500);
+print("testx!");
+

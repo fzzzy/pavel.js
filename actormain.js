@@ -1,10 +1,19 @@
 
 
-let [_cast, _resume, wait, receive, connect] = (function ActorMain() {
+let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, XMLHttpRequest] = (function ActorMain() {
     let _mailbox = [];
     let _gen_stack = [];
     let _pattern = null;
     let _next = null;
+    let _draining = false;
+
+    let _timeouts = {};
+    let _xmlhttprequests = {};
+
+    function cast(pattern, message) {
+        _mailbox.push([pattern, message]);
+        _schedule_event("runnable");
+    }
 
     function Result(val) {
         this._val = val;
@@ -53,7 +62,7 @@ let [_cast, _resume, wait, receive, connect] = (function ActorMain() {
     function wait(time) {
         let t = this._time = new Date();
         t.setTime(t.getTime() + time);
-        _schedule_event("wait", t);
+        _schedule_event("wait", [t, null]);
         return new SuspendUntil("wait");
     }
 
@@ -99,23 +108,62 @@ let [_cast, _resume, wait, receive, connect] = (function ActorMain() {
             } else if (_next && _next.next) {
                 _gen_stack.push(_next);
                 _next = _next.next();
+            } else if (_next === _sentinel) {
+                // Main script body has finished, now we run drain until all scheduled events have concluded
+                _gen_stack.push(drain());
+                _next = _gen_stack[_gen_stack.length - 1].next();
+            } else {
+                print("Warning: Unknown event:", _next);
+                return;
             }
         }
     }
-    function cast(pattern, message) {
-        _mailbox.push([pattern, message]);
-        _schedule_event("runnable");
+
+    function setTimeout(func, timeout) {
+        let key = Object.keys(_timeouts).length;
+        let t = this._time = new Date();
+        t.setTime(t.getTime() + timeout);
+        _timeouts[key] = [func, arguments];
+        _schedule_event("wait", [t, key]);
     }
+
+    function clearTimeout(key) {
+        let timeout = _timeouts[key];
+        if (timeout) {
+            timeout[0] = function() {};
+        }
+    }
+
+    function XMLHttpRequest() {
+    
+    }
+
+    function drain() {
+        while (Object.keys(_timeouts).length) {
+            let key = yield receive("wait");
+            let [func, args] = _timeouts[key];
+            try {
+                func.apply(null, args);
+            } catch (e) {
+                print("Exception in timer:");
+                print(e);
+                print(e.stack);
+            }
+        }
+    }
+
     function resume() {
         try {
             return _actor_main();
         } catch (e) {
-            if (e instanceof StopIteration) return;
+            if (e instanceof StopIteration) {
+                return;
+            }
             print('Error in Actor:');
             print(e);
             print(e.stack);
         }
     }
-    return [cast, resume, wait, receive, connect];
+    return [cast, resume, drain, wait, receive, connect, setTimeout, clearTimeout, XMLHttpRequest];
 }());
 

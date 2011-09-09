@@ -31,7 +31,9 @@ let pavel = (function pavel() {
         this._sockets = {};
 
         print("Spawning", main);
-        sandbox._script = '(function() {\n' + read(main) + '\nyield null;\n}());';
+        function Marker() {}
+        sandbox._sentinel = new Marker();
+        sandbox._script = '(function() {\n' + read(main) + '\nyield _sentinel;\n}());';
         evalcx(read("actormain.js"), sandbox);
         sandbox.print = print;
         sandbox.spawn = function(module) {
@@ -39,7 +41,7 @@ let pavel = (function pavel() {
         };
         sandbox._schedule_event = function(msg, data) {
             if (msg === "wait") {
-                sched.timer(actor, data);
+                sched.timer(actor, data[0], data[1]);
             } else if (msg === "runnable") {
                 sched.runnable.push(actor);
             } else if (msg === "connect") {
@@ -110,8 +112,8 @@ let pavel = (function pavel() {
         toString: function() {
             return "[object Pavel]";
         },
-        timer: function timer(actor, time) {
-            this.timers.push([time, actor]);
+        timer: function timer(actor, time, extra) {
+            this.timers.push([time, actor, extra]);
             this.timers.sort(function(a, b) {
                 return ((a[0] < b[0]) ? -1 : ((a[0] > b[0]) ? 1 : 0));
             });
@@ -167,6 +169,13 @@ let pavel = (function pavel() {
                 for ( ; i < l; i++) {
                     runnable[i]._resume();
                 }
+                if (this.timers.length || Object.keys(this.waiters).length) {
+                    let sleepTime = 3000;
+                    if (this.timers.length) {
+                        sleepTime = (this.timers[0][0].getTime() - new Date().getTime());
+                    }
+                    this.sleep(sleepTime);
+                }
                 let now = new Date();
                 for (i = 0, l = this.timers.length ; i < l; i++) {
                     if (now < this.timers[i][0]) {
@@ -177,14 +186,7 @@ let pavel = (function pavel() {
                 while (timers.length) {
                     let timer = timers.shift();
                     let actor = timer[1];
-                    actor._cast("wait", timer[0]);
-                }
-                if (this.timers.length || Object.keys(this.waiters).length) {
-                    let sleepTime = 3000;
-                    if (this.timers.length) {
-                        sleepTime = (this.timers[0][0].getTime() - new Date().getTime());
-                    }
-                    this.sleep(sleepTime);
+                    actor._cast("wait", timer[2]);
                 }
             }
         }
@@ -193,5 +195,4 @@ let pavel = (function pavel() {
     return main_loop;
 }());
 
-pavel.drain();
 
