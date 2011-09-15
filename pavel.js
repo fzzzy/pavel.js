@@ -34,8 +34,8 @@ let pavel = (function pavel() {
         function Marker() {}
         sandbox._sentinel = new Marker();
         sandbox._script = '(function() {\n' + read(main) + '\nyield _sentinel;\n}());';
-        evalcx(read("actormain.js"), sandbox);
         sandbox.print = print;
+        evalcx(read("actormain.js"), sandbox);
         sandbox.spawn = function(module) {
             return main_loop.spawn(module);
         };
@@ -47,11 +47,11 @@ let pavel = (function pavel() {
             } else if (msg === "connect") {
                 let sock = socket.connect(data[0], data[1]);
                 actor._sockets[sock._fd] = sock;
-                actor._cast("connect", sock._fd);
+                actor._cast("connect", [sock._fd, data[2]]);
             } else if (msg === "send") {
-                sched.iowait(actor, data[0], false, true, data[1]);
+                sched.iowait(actor, data[0], false, true, [data[1], data[2]]);
             } else if (msg === "recv") {
-                sched.iowait(actor, data[0], true, false, data[1]);
+                sched.iowait(actor, data[0], true, false, [data[1], data[2]]);
             } else if (msg === "close") {
                 actor._sockets[data[0]].close();
                 delete actor._sockets[data[0]];
@@ -147,11 +147,11 @@ let pavel = (function pavel() {
                     let actor = waiter._actor;
                     let sock = actor._sockets[evt.fd];
                     if (waiter._recv) {
-                        let result = sock.recv(waiter._data);
-                        actor._cast('recv', [evt.fd, result]);
+                        let result = sock.recv(waiter._data[0]);
+                        actor._cast('recv', [evt.fd, result, waiter._data[1]]);
                     } else if (waiter._send) {
-                        let bytes_sent = sock.send(waiter._data);
-                        actor._cast('send', [evt.fd, bytes_sent]);
+                        let bytes_sent = sock.send(waiter._data[0]);
+                        actor._cast('send', [evt.fd, bytes_sent, waiter._data[1]]);
                     }
                 }
             }

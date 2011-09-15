@@ -1,4 +1,4 @@
-
+/*
 let settimeout = spawn('tests/settimeout.ja');
 
 let act1 = spawn('tests/timers.ja');
@@ -13,6 +13,7 @@ let act4 = spawn('tests/basic2.ja');
 
 act3.cast("peer", act4);
 act4.cast("peer", act3);
+*/
+//let act5 = spawn('tests/socket.ja');
 
-let act5 = spawn('tests/socket.ja');
-
+let act6 = spawn('tests/xmlhttprequest.ja');

@@ -1,0 +1,31 @@
+
+
+// open(method, url, async, user, pw)
+// setRequestHeader(header, value)
+// send()
+// abort()
+
+// status
+// statusText
+// getResponseHeader(header)
+// getAllResponseHeaders()
+// responseText
+// responseXML
+
+
+let req = new XMLHttpRequest();
+
+req.onreadystatechange = function() {
+    if (this.readyState === req.DONE) {
+        print(this.statusText);
+        print(JSON.stringify(this.getAllResponseHeaders()));
+        print(this.responseText);
+        //print(this.getResponseHeader('HEADER'));
+    }
+}
+
+req.open("GET", "http://localhost/foo");
+
+req.setRequestHeader('HEADER', 'VALUE');
+
+req.send();
