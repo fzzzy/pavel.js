@@ -50,8 +50,8 @@ let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, X
     function connect(host, port) {
         let sock = new Socket(host, port);
         _schedule_event("connect", [host, port, sock._id]);
-        let result = yield new SuspendUntil("connect");
-        sock._fd = result[0];
+        let r = yield new SuspendUntil("connect");
+        sock._fd = r[0];
         yield result(sock);
     }
 
