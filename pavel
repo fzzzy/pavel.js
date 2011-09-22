@@ -1,0 +1,9 @@
+#!/usr/bin/env cjs
+
+run("pavel.js");
+
+for (let i in arguments) {
+    pavel.spawn(arguments[i]);
+}
+
+pavel.drain();

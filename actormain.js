@@ -1,13 +1,15 @@
 
 
-let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, XMLHttpRequest] = (function ActorMain() {
+let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, setInterval, clearInterval, XMLHttpRequest] = (function ActorMain() {
     let _mailbox = [];
     let _gen_stack = [];
     let _pattern = null;
     let _next = null;
-    let _draining = false;
 
+    let _timeout_num = 1;
     let _timeouts = {};
+    let _interval_num = 1;
+    let _intervals = {};
     let _connects = [];
     let _xhrs = {};
     let _xhrid = 0;
@@ -134,18 +136,43 @@ let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, X
     }
 
     function setTimeout(func, timeout) {
-        let key = Object.keys(_timeouts).length;
+        let key = _timeout_num++;
         let t = this._time = new Date();
         t.setTime(t.getTime() + timeout);
-        _timeouts[key] = [func, arguments];
+        let args = [];
+        for (let i = 2; i < arguments.length; i++) {
+            args.push(arguments[i]);
+        }
+        _timeouts[key] = [func, args];
         _schedule_event("wait", [t, key]);
     }
 
     function clearTimeout(key) {
-        let timeout = _timeouts[key];
-        if (timeout) {
-            timeout[0] = function() {};
+        delete _timeouts[key];
+    }
+
+    function _intervalTimeout(func, interval, key, args) {
+        if (_intervals[key]) {
+            _intervals[key] = setTimeout(_intervalTimeout, interval, func, interval, key, args);
         }
+        try {
+            func.apply(window, args);
+        } catch (e) {
+            print("Error in setInterval");
+            print(e, e.stack);
+            clearInterval(key);
+        }
+    }
+
+    function setInterval(func, interval) {
+        let key = _interval_num++;
+        _intervals[key] = setTimeout(_intervalTimeout, interval, func, interval, key, arguments);
+        return key;
+    }
+
+    function clearInterval(key) {
+        clearTimeout(_intervals[key]);
+        delete _intervals[key];
     }
 
     function urlparse(url) {
@@ -334,7 +361,6 @@ let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, X
                     xhr.readyState = XMLHttpRequest.prototype.LOADING;
                     xhr.onreadystatechange.apply(xhr);
                 }
-
             }
         }
     }
@@ -352,6 +378,10 @@ let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, X
             print(e.stack);
         }
     }
-    return [cast, resume, drain, wait, receive, connect, setTimeout, clearTimeout, XMLHttpRequest];
+    window.setTimeout = setTimeout;
+    window.clearTimeout = clearTimeout;
+    window.setInterval = setInterval;
+    window.clearInterval = clearInterval;
+    return [cast, resume, drain, wait, receive, connect, setTimeout, clearTimeout, setInterval, clearInterval, XMLHttpRequest];
 }());
 

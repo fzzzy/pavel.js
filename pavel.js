@@ -35,7 +35,12 @@ let pavel = (function pavel() {
         sandbox._sentinel = new Marker();
         sandbox._script = '(function() {\n' + read(main) + '\nyield _sentinel;\n}());';
         sandbox.print = print;
-        evalcx(read("actormain.js"), sandbox);
+        evalcx(read("../dom.js/dom.js"), sandbox);
+        sandbox.document.write = function(j) {
+            // TODO
+        };
+        sandbox.document.location = { href: "http://example.com/foo" };
+        sandbox.window = {};
         sandbox.spawn = function(module) {
             return main_loop.spawn(module);
         };
@@ -60,6 +65,9 @@ let pavel = (function pavel() {
                 print("unhandled message", msg, data);
             }
         };
+        evalcx(read("actormain.js"), sandbox);
+        evalcx(read("parser.js"), sandbox);
+        evalcx("let event = document.createEvent('customevent'); event.initEvent('DOMContentLoaded', false, true); document.dispatchEvent(event);", sandbox);
     }
     Actor.prototype = {
         toString: function toString() {
