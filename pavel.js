@@ -33,7 +33,6 @@ let pavel = (function pavel() {
         print("Spawning", main);
         function Marker() {}
         sandbox._sentinel = new Marker();
-        sandbox._script = '(function() {\n' + read(main) + '\nyield _sentinel;\n}());';
         sandbox.print = print;
         evalcx(read("../dom.js/dom.js"), sandbox);
         sandbox.document.write = function(j) {
@@ -44,27 +43,28 @@ let pavel = (function pavel() {
         sandbox.spawn = function(module) {
             return main_loop.spawn(module);
         };
-        sandbox._schedule_event = function(msg, data) {
-            if (msg === "wait") {
-                sched.timer(actor, data[0], data[1]);
-            } else if (msg === "runnable") {
-                sched.runnable.push(actor);
-            } else if (msg === "connect") {
-                let sock = socket.connect(data[0], data[1]);
-                actor._sockets[sock._fd] = sock;
-                actor._cast("connect", [sock._fd, data[2]]);
-            } else if (msg === "send") {
-                sched.iowait(actor, data[0], false, true, [data[1], data[2]]);
-            } else if (msg === "recv") {
-                sched.iowait(actor, data[0], true, false, [data[1], data[2]]);
-            } else if (msg === "close") {
-                actor._sockets[data[0]].close();
-                delete actor._sockets[data[0]];
-                actor._cast("close", data[0]);
-            } else {
-                print("unhandled message", msg, data);
-            }
+        sandbox.socket_connect = function connect(host, port) {
+            let sock = socket.connect(host, port);
+            actor._sockets[sock._fd] = sock;
+            //actor._cast("connect", [sock._fd, data[2]]);
+            return sock._fd;
         };
+        sandbox.socket_close = function close(fileno) {
+            actor._sockets[fileno].close();
+            delete actor._sockets[fileno];
+            actor._cast("close", fileno);
+        };
+        sandbox.schedule_timer = function schedule_timer(timeout, request_id) {
+            let until = new Date().getTime() + timeout;
+            sched.timer(actor, until, request_id);
+        };
+        sandbox.schedule_read = function schedule_read(fd, howmuch, request_id) {
+            sched.iowait(actor, fd, true, false, [howmuch, request_id]);
+        };
+        sandbox.schedule_write = function schedule_write(fd, data, request_id) {
+            sched.iowait(actor, fd, false, true, [data, request_id]);
+        };
+        evalcx("function _main() {" + read(main) + '\nyield _sentinel; };', sandbox);
         evalcx(read("actormain.js"), sandbox);
         evalcx(read("parser.js"), sandbox);
         evalcx("let event = document.createEvent('customevent'); event.initEvent('DOMContentLoaded', false, true); document.dispatchEvent(event);", sandbox);
@@ -81,12 +81,12 @@ let pavel = (function pavel() {
             } else {
                 msg = JSON.stringify(msg);
             }
-            let evalstr = "_cast('" + pattern.toString() + "', " + msg + ");";
+            let evalstr = "cast('" + pattern.toString() + "', " + msg + ");";
             evalcx(evalstr, this._sandbox);
             delete this._sandbox._address;
         },
         _resume: function _resume() {
-            evalcx("_resume()", this._sandbox);
+            evalcx("resume()", this._sandbox);
         }
     }
 
@@ -180,11 +180,11 @@ let pavel = (function pavel() {
                 if (this.timers.length || Object.keys(this.waiters).length) {
                     let sleepTime = 3000;
                     if (this.timers.length) {
-                        sleepTime = (this.timers[0][0].getTime() - new Date().getTime());
+                        sleepTime = Math.floor(this.timers[0][0] - new Date().getTime());
                     }
                     this.sleep(sleepTime);
                 }
-                let now = new Date();
+                let now = new Date().getTime();
                 for (i = 0, l = this.timers.length ; i < l; i++) {
                     if (now < this.timers[i][0]) {
                         break;

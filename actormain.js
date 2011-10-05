@@ -1,6 +1,12 @@
 
+(function(globs) {
+    let _main = globs._main;
+    let schedule_read = globs.schedule_read;
+    let schedule_write = globs.schedule_write;
+    let schedule_timer = globs.schedule_timer;
+    let socket_connect = globs.socket_connect;
+    let socket_close = globs.socket_close;
 
-let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, setInterval, clearInterval, XMLHttpRequest] = (function ActorMain() {
     let _mailbox = [];
     let _gen_stack = [];
     let _pattern = null;
@@ -12,11 +18,10 @@ let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, s
     let _intervals = {};
     let _connects = [];
     let _xhrs = {};
-    let _xhrid = 0;
+    let _xhrid = 1;
 
     function cast(pattern, message) {
         _mailbox.push([pattern, message]);
-        _schedule_event("runnable");
     }
 
     function Any() {}
@@ -24,6 +29,7 @@ let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, s
     function Result(val) {
         this._val = val;
     }
+    Result.prototype.toString = function() { return "[object Result(" + this._val + ")]" }
     function result(val) {
         return new Result(val);
     }
@@ -34,27 +40,28 @@ let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, s
     Socket.prototype = {
         toString: function() { return "[object Socket(" + this._fd + ")]"; },
         recv: function recv(howmuch) {
-            _schedule_event("recv", [this._fd, howmuch]);
+            schedule_read(this._fd, howmuch);
             let r = yield new SuspendUntil("recv");
             yield result(r[1]);
         },
         send: function send(data) {
-            _schedule_event("send", [this._fd, data]);
+            schedule_write(this._fd, data);
             let r = yield new SuspendUntil("send");
             yield result(r[1]);
         },
         close: function close() {
-            _schedule_event("close", [this._fd]);
+            socket_close(this.fd);
             yield new SuspendUntil("close");
         }
     }
 
     function connect(host, port) {
         let sock = new Socket(host, port);
-        _schedule_event("connect", [host, port, sock._id]);
-        let r = yield new SuspendUntil("connect");
-        sock._fd = r[0];
-        yield result(sock);
+        sock._fd = socket_connect(host, port, sock._id);
+        return sock;
+        //let r = yield new SuspendUntil("connect");
+        //sock._fd = r[0];
+        //yield result(sock);
     }
 
     function SuspendUntil(pattern) {
@@ -67,9 +74,7 @@ let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, s
     }
 
     function wait(time) {
-        let t = this._time = new Date();
-        t.setTime(t.getTime() + time);
-        _schedule_event("wait", [t, null]);
+        schedule_timer(time, null);
         return new SuspendUntil("wait");
     }
 
@@ -79,7 +84,7 @@ let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, s
 
     function _actor_main() {
         if (!_gen_stack.length) {
-            _gen_stack = [eval(_script)];
+            _gen_stack = [_main()];
             _next = _gen_stack[0].next();
         }
 
@@ -92,7 +97,7 @@ let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, s
                     }
                 }
                 if (i === _mailbox.length) {
-                    return;
+                    return _pattern;
                 } else {
                     // We found a match for our pattern
                     if (_pattern === Any) {
@@ -108,7 +113,6 @@ let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, s
                 if (_pattern === undefined) {
                     _pattern = Any;
                 }
-                return;
             } else if (_next instanceof Result) {
                 // a value to pump into a generator
                 try {
@@ -137,14 +141,12 @@ let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, s
 
     function setTimeout(func, timeout) {
         let key = _timeout_num++;
-        let t = this._time = new Date();
-        t.setTime(t.getTime() + timeout);
         let args = [];
         for (let i = 2; i < arguments.length; i++) {
             args.push(arguments[i]);
         }
         _timeouts[key] = [func, args];
-        _schedule_event("wait", [t, key]);
+        schedule_timer(timeout / 1000.0, key);
     }
 
     function clearTimeout(key) {
@@ -189,16 +191,19 @@ let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, s
                 result.netloc = url.substring(2, i);
                 url = url.substring(i);
             }
-            i = url.indexOf('#');
-            if (i > 0) {
-                result.fragment = url.substring(i + 1)
-                url = url.substring(0, i);
-            }
-            i = url.indexOf('?');
-            if (i > 0) {
-                result.query = url.substring(i + 1);
-                url = url.substring(0, i);
-            }
+        } else {
+            result.scheme = "TODO use relative"
+            result.netloc = "TODO use relative"
+        }
+        i = url.indexOf('#');
+        if (i > 0) {
+            result.fragment = url.substring(i + 1)
+            url = url.substring(0, i);
+        }
+        i = url.indexOf('?');
+        if (i > 0) {
+            result.query = url.substring(i + 1);
+            url = url.substring(0, i);
         }
         result.url = url;
         return result;
@@ -211,7 +216,7 @@ let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, s
         this._response = "";
         this.responseText = "";
         this.responseXML = null;
-        this._id = XMLHttpRequest.prototype._id++;
+        this._id = _xhrid++;
         this._headers = [];
         this._responseHeaders = [];
     }
@@ -242,12 +247,13 @@ let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, s
             }
             this._sock = new Socket(host, port);
             _xhrs[this._id] = this;
-            _schedule_event("connect", [host, port, this._id]);
+            this._fd = socket_connect(host, port, this._id);
             this._host = host;
             this._method = method;
             this._url = parts.url;
             this._user = user;
             this._pw = pw;
+            this.readyState = XMLHttpRequest.prototype.OPENED;
         },
         setRequestHeader: function setRequestHeader(header, value) {
             this._headers.push([header, value]);
@@ -268,7 +274,7 @@ let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, s
                 this._request += data;
             }
             if (this.readyState === XMLHttpRequest.prototype.OPENED) {
-                _schedule_event("send", [this._fd, this._request, this._id]);
+                schedule_write(this._fd, this._request, this._id);
             }
         },
         abort: function abort() {
@@ -290,6 +296,7 @@ let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, s
             if (pattern === "wait") {
                 let func = _timeouts[data][0];
                 let args = _timeouts[data][1];
+                delete _timeouts[data];
                 try {
                     func.apply(null, args);
                 } catch (e) {
@@ -304,15 +311,15 @@ let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, s
                 xhr.readyState = XMLHttpRequest.prototype.OPENED;
                 xhr.onreadystatechange.apply(xhr);
                 if (xhr._request) {
-                    _schedule_event("send", [fd, xhr._request, xhr._id]);
+                    schedule_write(fd, xhr._request, xhr._id);
                 }
             } else if (pattern === "send") {
                 let xhr = _xhrs[data[2]];
                 xhr._request = xhr._request.substring(data[1]);
                 if (xhr._request.length) {
-                    _schedule_event("send", [xhr._fd, xhr._request, xhr._id]);
+                    schedule_write(xhr._fd, xhr._request, xhr._id);
                 } else {
-                    _schedule_event("recv", [xhr._fd, 32768, xhr._id]);
+                    schedule_read(xhr._fd, 32768, xhr._id);
                 }
             } else if (pattern === "recv") {
                 let xhr = _xhrs[data[2]];
@@ -367,7 +374,7 @@ let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, s
 
     function resume() {
         try {
-            return _actor_main();
+            _actor_main();
         } catch (e) {
             if (e instanceof StopIteration) {
                 return;
@@ -378,10 +385,22 @@ let [_cast, _resume, _drain, wait, receive, connect, setTimeout, clearTimeout, s
             print(e.stack);
         }
     }
-    window.setTimeout = setTimeout;
-    window.clearTimeout = clearTimeout;
-    window.setInterval = setInterval;
-    window.clearInterval = clearInterval;
-    return [cast, resume, drain, wait, receive, connect, setTimeout, clearTimeout, setInterval, clearInterval, XMLHttpRequest];
-}());
+    globs.window.setTimeout = setTimeout;
+    globs.window.clearTimeout = clearTimeout;
+    globs.window.setInterval = setInterval;
+    globs.window.clearInterval = clearInterval;
+    globs.setTimeout = setTimeout;
+    globs.clearTimeout = clearTimeout;
+    globs.setInterval = setInterval;
+    globs.clearInterval = clearInterval;
 
+    globs.cast = cast;
+    globs.resume = resume;
+    globs.drain = drain;
+    globs.wait = wait;
+    globs.receive = receive;
+    globs.connect = connect;
+    globs.XMLHttpRequest = XMLHttpRequest;
+})(this);
+
+"Hello"
